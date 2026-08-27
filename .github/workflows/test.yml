@@ -44,6 +44,9 @@ jobs:
       - name: Git describe
         id: ghd
         uses: proudust/gh-describe@80412be8ce0e77d8afba6b340e34790bc772aa45 # v2.2.0
+        with:
+          # Fork has no tags yet — without this the describe step fails
+          default: dev
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -413,6 +416,9 @@ jobs:
       - name: Git describe
         id: ghd
         uses: proudust/gh-describe@80412be8ce0e77d8afba6b340e34790bc772aa45 # v2.2.0
+        with:
+          # Fork has no tags yet — without this the describe step fails
+          default: dev
       - name: Inject frontend version
         working-directory: frontend
         run: |
