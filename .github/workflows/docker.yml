@@ -1,5 +1,9 @@
 name: Docker
 
+# Publishes docker.ethquokkaops.io/ethquokkaops/ethdevops/vikunja (ETH-2812
+# registry migration). Registry credentials come from OpenBao via GitHub OIDC
+# (role ethquokkaops-vikunja-ci, bound to this workflow file).
+
 on:
   workflow_call:
 
@@ -9,6 +13,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # Required for the GitHub OIDC token used to authenticate against OpenBao.
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Git describe
@@ -17,25 +23,39 @@ jobs:
         with:
           # Fork has no tags yet — without this the describe step fails
           default: dev
-      - name: Login to GHCR
+      - name: Fetch registry credentials from OpenBao
+        uses: hashicorp/vault-action@4c06c5ccf5c0761b6029f56cfb1dcf5565918a3b # v3.4.0
+        with:
+          url: https://tyrell.ethquokkaops.io
+          path: jwt-github
+          method: jwt
+          role: ethquokkaops-vikunja-ci
+          exportEnv: true
+          secrets: |
+            secret/ethquokkaops/data/docker-registry/production/credentials/ethquokkaops/robot-vikunja user | DOCKER_REGISTRY_USER ;
+            secret/ethquokkaops/data/docker-registry/production/credentials/ethquokkaops/robot-vikunja pass | DOCKER_REGISTRY_SECRET
+      - name: Log into registry docker.ethquokkaops.io
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: docker.ethquokkaops.io
+          username: ${{ env.DOCKER_REGISTRY_USER }}
+          password: ${{ env.DOCKER_REGISTRY_SECRET }}
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: ghcr.io/${{ github.repository_owner }}/vikunja
+          images: docker.ethquokkaops.io/ethquokkaops/ethdevops/vikunja
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=unstable,enable={{is_default_branch}}
+            # Bare 7-char short SHA so argocd-image-updater can track it
+            # with updateStrategy: newest-build + allowTags: ^[0-9a-f]{7}$
+            type=sha,format=short,prefix=
       - name: Build and push
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
